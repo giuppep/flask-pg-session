@@ -23,7 +23,7 @@ sphinx = "^7.0.1"
 
 [tool.pydocstyle]
 convention = "google"
-add-ignore = "D105,D104,D101,D100"
+add-ignore = "D105,D104,D101,D100,D102,D107"
 
 [tool.isort]
 profile = "black"

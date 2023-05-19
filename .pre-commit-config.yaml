@@ -50,11 +50,3 @@ repos:
         entry: poetry run mypy flask_pg_session/
         types: [python]
         pass_filenames: false
-      # - id: pytest
-      #   name: pytest
-      #   stages: [push]
-      #   entry: poetry run py.test -v
-      #   pass_filenames: false
-      #   language: system
-      #   always_run: true
-      #   types: [python]
