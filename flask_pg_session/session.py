@@ -25,6 +25,7 @@ logger = logging.getLogger(__name__)
 DEFAULT_TABLE_NAME = "flask_sessions"
 DEFAULT_KEY_PREFIX = ""
 DEFAULT_USE_SIGNER = False
+DELETE_EXPIRED_SESSIONS_EVERY_REQUESTS = 1000
 
 
 # This is copied verbatim from flask-session
@@ -129,6 +130,8 @@ class FlaskPgSession(FlaskSessionInterface):
     def _get_store_id(self, sid: str) -> str:
         return self.key_prefix + sid
 
+    # QUERY HELPERS
+
     @contextmanager
     def _get_cursor(
         self, conn: Optional[PsycoPg2Connection] = None
@@ -175,15 +178,24 @@ class FlaskPgSession(FlaskSessionInterface):
             return data[0] if data is not None else None
 
     @retry_query(max_attempts=3)
-    def _upsert_session(self, sid: str, data: bytes, expires: datetime) -> None:
+    def _update_session(
+        self, sid: str, session: ServerSideSession, expires: datetime | None
+    ) -> None:
+        data = self.serializer.dumps(dict(session))
         with self._get_cursor() as cur:
             cur.execute(
                 queries.UPSERT_SESSION.format(table=self.table_name),
                 dict(session_id=self._get_store_id(sid), data=data, expiry=expires),
             )
 
+    # INTERFACE METHODS
+
     def open_session(self, app: Flask, request: Request) -> ServerSideSession:
-        if self.autodelete_expired_sessions and random.randint(0, 1000) == 0:
+        # Delete expired sessions approximately every N requests
+        if (
+            self.autodelete_expired_sessions
+            and random.randint(0, DELETE_EXPIRED_SESSIONS_EVERY_REQUESTS) == 0
+        ):
             app.logger.info("Deleting expired sessions")
             try:
                 self._delete_expired_sessions()
@@ -192,20 +204,25 @@ class FlaskPgSession(FlaskSessionInterface):
                     e, "Failed to delete expired sessions. Skipping..."
                 )
 
+        # Get the session ID from the cookie
         sid = request.cookies.get(app.session_cookie_name)
 
+        # If there's no session ID, generate a new one
         if not sid:
             sid = self._generate_sid()
             return self.session_class(sid=sid, permanent=self.permanent)
 
-        assert sid
+        # If the session ID is signed, unsign it
         if self.use_signer:
             try:
+                # This can fail, e.g. if the secret key was changed or if the signer
+                #  was previously disabled.
                 sid = self._unsign_sid(app, sid)
             except BadSignature:
                 sid = self._generate_sid()
                 return self.session_class(sid=sid, permanent=self.permanent)
 
+        # Retrieve the session data from the database
         saved_session_data = self._retrieve_session_data(sid)
 
         if saved_session_data is not None:
@@ -219,44 +236,40 @@ class FlaskPgSession(FlaskSessionInterface):
     def save_session(
         self, app: Flask, session: ServerSideSession, response: Response
     ) -> None:
-        domain = self.get_cookie_domain(app)
-        path = self.get_cookie_path(app)
-
         if not session:
             if session.modified:
+                # If the session is empty and has been modified, delete it from the database
                 self._delete_session(session.sid)
-
+                # and delete the cookie
                 response.delete_cookie(
-                    app.session_cookie_name, domain=domain, path=path
+                    app.session_cookie_name,
+                    domain=self.get_cookie_domain(app),
+                    path=self.get_cookie_path(app),
                 )
             return
 
+        # Respect SESSION_REFRESH_EACH_REQUEST preference
         if not self.should_set_cookie(app, session):
             return
 
-        conditional_cookie_kwargs = {}
-        httponly = self.get_cookie_httponly(app)
-        secure = self.get_cookie_secure(app)
-
-        if self.has_same_site_capability:
-            conditional_cookie_kwargs["samesite"] = self.get_cookie_samesite(app)
-
+        # Save the session to the database. If session is already present, update the
+        #  data and expiry time.
         expires = self.get_expiration_time(app, session)
-        val = self.serializer.dumps(dict(session))
+        self._update_session(session.sid, session, expires)
 
-        self._upsert_session(session.sid, val, expires)
-
-        session_id = (
+        cookie_session_id = (
             self._sign_sid(app, session.sid) if self.use_signer else session.sid
         )
 
         response.set_cookie(
             app.session_cookie_name,
-            session_id,
+            cookie_session_id,
             expires=expires,
-            httponly=httponly,
-            domain=domain,
-            path=path,
-            secure=secure,
-            **conditional_cookie_kwargs,
+            httponly=self.get_cookie_httponly(app),
+            domain=self.get_cookie_domain(app),
+            path=self.get_cookie_path(app),
+            secure=self.get_cookie_secure(app),
+            samesite=self.get_cookie_samesite(app)
+            if self.has_same_site_capability
+            else None,
         )
