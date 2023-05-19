@@ -1,0 +1,60 @@
+repos:
+  - repo: local
+    hooks:
+      - id: isort
+        name: isort
+        files: "^flask_pg_session"
+        stages: [commit]
+        language: system
+        entry: poetry run isort
+        types: [python]
+
+      - id: black
+        name: black
+        files: "^flask_pg_session"
+        stages: [commit]
+        language: system
+        entry: poetry run black
+        types: [python]
+
+      - id: flake8
+        name: flake8
+        files: "^flask_pg_session"
+        stages: [commit]
+        language: system
+        entry: poetry run flake8
+        types: [python]
+
+      - id: pydocstyle
+        name: pydocstyle
+        files: "^flask_pg_session"
+        stages: [commit]
+        language: system
+        entry: poetry run pydocstyle
+        types: [python]
+
+      - id: mypy
+        name: mypy
+        files: "^flask_pg_session"
+        stages: [commit]
+        language: system
+        entry: poetry run mypy
+        types: [python]
+        pass_filenames: true
+
+      - id: mypy-full
+        name: mypy
+        files: ".py$"
+        stages: [push]
+        language: system
+        entry: poetry run mypy flask_pg_session/
+        types: [python]
+        pass_filenames: false
+      # - id: pytest
+      #   name: pytest
+      #   stages: [push]
+      #   entry: poetry run py.test -v
+      #   pass_filenames: false
+      #   language: system
+      #   always_run: true
+      #   types: [python]
