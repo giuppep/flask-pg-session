@@ -17,6 +17,7 @@ from psycopg2.extensions import cursor as PsycoPg2Cursor
 from psycopg2.pool import ThreadedConnectionPool
 from werkzeug.datastructures import CallbackDict
 
+from . import _queries as queries
 from .utils import retry_query
 
 logger = logging.getLogger(__name__)
@@ -50,11 +51,14 @@ class FlaskPgSession(FlaskSessionInterface):
 
     @classmethod
     def init_app(cls, app: Flask) -> "FlaskPgSession":
+        """Initialize the Flask-PgSession extension using the app's configuration."""
+
         session_interface = cls(
             app.config["SQLALCHEMY_DATABASE_URI"],
             table_name=app.config.get("SESSION_SQLALCHEMY_TABLE", DEFAULT_TABLE_NAME),
             key_prefix=app.config.get("SESSION_KEY_PREFIX", DEFAULT_KEY_PREFIX),
             use_signer=app.config.get("SESSION_USE_SIGNER", DEFAULT_USE_SIGNER),
+            permanent=app.config.get("SESSION_PERMANENT", True),
         )
         app.session_interface = session_interface
         return session_interface
@@ -66,21 +70,39 @@ class FlaskPgSession(FlaskSessionInterface):
         table_name: str = DEFAULT_TABLE_NAME,
         key_prefix: str = DEFAULT_KEY_PREFIX,
         use_signer: bool = DEFAULT_USE_SIGNER,
-        has_same_site_capability: bool = False,
         permanent: bool = True,
         autodelete_expired_sessions: bool = True,
         max_db_conn: int = 100,
     ) -> None:
+        """Initialize a new Flask-PgSession instance.
+
+        Args:
+            uri (str): The database URI to connect to.
+            table_name (str, optional): The name of the table to store sessions in.
+                Defaults to "flask_sessions".
+            key_prefix (str, optional): The prefix to prepend to the session ID when
+                storing it in the database. Defaults to "".
+            use_signer (bool, optional): Whether to use a signer to sign the session.
+                Defaults to False.
+            permanent (bool, optional): Whether the session should be permanent.
+                Defaults to True.
+            autodelete_expired_sessions (bool, optional): Whether to automatically
+                delete expired sessions. Defaults to True.
+            max_db_conn (int, optional): The maximum number of database connections to
+                keep open. Defaults to 100.
+        """
         self.pool = ThreadedConnectionPool(1, max_db_conn, uri)
         self.key_prefix = key_prefix
         self.table_name = table_name
         self.permanent = permanent
         self.use_signer = use_signer
-        self.has_same_site_capability = has_same_site_capability
+        self.has_same_site_capability = hasattr(self, "get_cookie_samesite")
 
         self.autodelete_expired_sessions = autodelete_expired_sessions
 
         self._create_table(self.table_name)
+
+    # HELPERS
 
     def _generate_sid(self):
         return str(uuid4())
@@ -89,6 +111,23 @@ class FlaskPgSession(FlaskSessionInterface):
         if not app.secret_key:
             return None
         return Signer(app.secret_key, salt="flask-session", key_derivation="hmac")
+
+    def _unsign_sid(self, app: Flask, sid: str) -> str:
+        signer = self._get_signer(app)
+        if not self.use_signer or not signer:
+            raise RuntimeError("Session signing is disabled.")
+
+        return signer.unsign(sid).decode()
+
+    def _sign_sid(self, app: Flask, sid: str) -> str:
+        signer = self._get_signer(app)
+        if not self.use_signer or not signer:
+            raise RuntimeError("Session signing is disabled.")
+
+        return self._get_signer(app).sign(want_bytes(sid))
+
+    def _get_store_id(self, sid: str) -> str:
+        return self.key_prefix + sid
 
     @contextmanager
     def _get_cursor(
@@ -106,51 +145,21 @@ class FlaskPgSession(FlaskSessionInterface):
         finally:
             self.pool.putconn(_conn)
 
-    def _get_store_id(self, sid: str) -> str:
-        return self.key_prefix + sid
-
     @retry_query(max_attempts=3)
     def _create_table(self, table_name: str) -> None:
         with self._get_cursor() as cur:
-            cur.execute(
-                f"""CREATE TABLE IF NOT EXISTS {table_name} (
-            session_id VARCHAR(255) NOT NULL PRIMARY KEY,
-            created TIMESTAMP WITHOUT TIME ZONE DEFAULT (NOW() AT TIME ZONE 'utc'),
-            data BYTEA,
-            expiry TIMESTAMP WITHOUT TIME ZONE
-        );
-
-        --- Unique session_id
-        CREATE UNIQUE INDEX IF NOT EXISTS
-            uq_{table_name}_session_id ON {table_name} (session_id);
-
-        --- Index for expiry timestamp
-        CREATE INDEX IF NOT EXISTS
-            {table_name}_expiry_idx ON {table_name} (expiry);
-        """
-            )
-
-    def _unsign_sid(self, app: Flask, sid: str) -> str:
-        signer = self._get_signer(app)
-        if not self.use_signer or not signer:
-            raise RuntimeError("Session signing is disabled.")
-
-        return signer.unsign(sid).decode()
+            cur.execute(queries.CREATE_TABLE.format(table=table_name))
 
     def _delete_expired_sessions(self) -> None:
         """Delete all expired sessions from the database."""
         with self._get_cursor() as cur:
-            cur.execute(
-                f"DELETE FROM {self.table_name} WHERE expiry < NOW();",
-            )
+            cur.execute(queries.DELETE_EXPIRED_SESSIONS.format(table=self.table_name))
 
     @retry_query(max_attempts=3)
     def _delete_session(self, sid: str) -> None:
         with self._get_cursor() as cur:
             cur.execute(
-                "DELETE FROM {table} WHERE session_id = %(session_id)s".format(
-                    table=self.table_name
-                ),
+                queries.DELETE_SESSION.format(table=self.table_name),
                 dict(session_id=self._get_store_id(sid)),
             )
 
@@ -158,30 +167,18 @@ class FlaskPgSession(FlaskSessionInterface):
     def _retrieve_session_data(self, sid: str) -> bytes | None:
         with self._get_cursor() as cur:
             cur.execute(
-                """
-                --- If the current sessions is expired, delete it
-                DELETE FROM {table} WHERE session_id = %(session_id)s AND expiry < NOW();
-                --- Else retrieve it
-                SELECT data FROM {table} WHERE session_id = %(session_id)s;""".format(
-                    table=self.table_name
-                ),
+                queries.RETRIEVE_SESSION_DATA.format(table=self.table_name),
                 dict(session_id=self._get_store_id(sid)),
             )
             data = cur.fetchone()
 
             return data[0] if data is not None else None
 
-    @retry_query()
+    @retry_query(max_attempts=3)
     def _upsert_session(self, sid: str, data: bytes, expires: datetime) -> None:
         with self._get_cursor() as cur:
             cur.execute(
-                """INSERT INTO {table} (session_id, data, expiry)
-                    VALUES (%(session_id)s, %(data)s, %(expiry)s)
-                    ON CONFLICT (session_id)
-                    DO UPDATE SET data = %(data)s, expiry = %(expiry)s;
-                """.format(
-                    table=self.table_name
-                ),
+                queries.UPSERT_SESSION.format(table=self.table_name),
                 dict(session_id=self._get_store_id(sid), data=data, expiry=expires),
             )
 
@@ -249,10 +246,9 @@ class FlaskPgSession(FlaskSessionInterface):
 
         self._upsert_session(session.sid, val, expires)
 
-        if self.use_signer:
-            session_id = self._get_signer(app).sign(want_bytes(session.sid))
-        else:
-            session_id = session.sid
+        session_id = (
+            self._sign_sid(app, session.sid) if self.use_signer else session.sid
+        )
 
         response.set_cookie(
             app.session_cookie_name,
