@@ -5,7 +5,7 @@ import pickle
 import random
 from contextlib import contextmanager
 from datetime import datetime
-from typing import Generator, Optional
+from typing import Any, Generator, Optional
 from uuid import uuid4
 
 from flask import Flask, Request, Response
@@ -33,9 +33,12 @@ class ServerSideSession(CallbackDict, SessionMixin):
     """Baseclass for server-side based sessions."""
 
     def __init__(
-        self, initial=None, sid: str | None = None, permanent: bool | None = None
-    ):
-        def on_update(self):
+        self,
+        initial: dict[str, Any] | None = None,
+        sid: str | None = None,
+        permanent: bool | None = None,
+    ) -> None:
+        def on_update(self) -> None:  # type: ignore
             self.modified = True
 
         CallbackDict.__init__(self, initial, on_update)
@@ -53,7 +56,6 @@ class FlaskPgSession(FlaskSessionInterface):
     @classmethod
     def init_app(cls, app: Flask) -> "FlaskPgSession":
         """Initialize the Flask-PgSession extension using the app's configuration."""
-
         session_interface = cls(
             app.config["SQLALCHEMY_DATABASE_URI"],
             table_name=app.config.get("SESSION_SQLALCHEMY_TABLE", DEFAULT_TABLE_NAME),
@@ -105,7 +107,7 @@ class FlaskPgSession(FlaskSessionInterface):
 
     # HELPERS
 
-    def _generate_sid(self):
+    def _generate_sid(self) -> str:
         return str(uuid4())
 
     def _get_signer(self, app: Flask) -> Signer | None:
@@ -125,7 +127,7 @@ class FlaskPgSession(FlaskSessionInterface):
         if not self.use_signer or not signer:
             raise RuntimeError("Session signing is disabled.")
 
-        return self._get_signer(app).sign(want_bytes(sid))
+        return signer.sign(want_bytes(sid)).decode()
 
     def _get_store_id(self, sid: str) -> str:
         return self.key_prefix + sid
@@ -205,7 +207,7 @@ class FlaskPgSession(FlaskSessionInterface):
                 )
 
         # Get the session ID from the cookie
-        sid = request.cookies.get(app.session_cookie_name)
+        sid = request.cookies.get(self.get_cookie_name(app))
 
         # If there's no session ID, generate a new one
         if not sid:
@@ -234,15 +236,18 @@ class FlaskPgSession(FlaskSessionInterface):
         return self.session_class(sid=sid, permanent=self.permanent)
 
     def save_session(
-        self, app: Flask, session: ServerSideSession, response: Response
+        self, app: Flask, session: SessionMixin, response: Response
     ) -> None:
+        assert isinstance(session, ServerSideSession)
+        assert session.sid is not None
+
         if not session:
             if session.modified:
                 # If the session is empty and has been modified, delete it from the database
                 self._delete_session(session.sid)
                 # and delete the cookie
                 response.delete_cookie(
-                    app.session_cookie_name,
+                    self.get_cookie_name(app),
                     domain=self.get_cookie_domain(app),
                     path=self.get_cookie_path(app),
                 )
@@ -262,7 +267,7 @@ class FlaskPgSession(FlaskSessionInterface):
         )
 
         response.set_cookie(
-            app.session_cookie_name,
+            self.get_cookie_name(app),
             cookie_session_id,
             expires=expires,
             httponly=self.get_cookie_httponly(app),
