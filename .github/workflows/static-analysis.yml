@@ -4,7 +4,7 @@ name: Release
 on:
   push:
     branches:
-      - gh-actions
+      - main
 
 env:
   APP_DIR: flask_pg_session
