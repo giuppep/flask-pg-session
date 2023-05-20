@@ -24,6 +24,7 @@ DEFAULT_SCHEMA_NAME = "public"
 DEFAULT_KEY_PREFIX = ""
 DEFAULT_USE_SIGNER = False
 DELETE_EXPIRED_SESSIONS_EVERY_REQUESTS = 1000
+DEFAULT_PG_MAX_DB_CONN = 100
 
 
 # This is copied verbatim from flask-session
@@ -60,6 +61,12 @@ class FlaskPgSession(FlaskSessionInterface):
             key_prefix=app.config.get("SESSION_KEY_PREFIX", DEFAULT_KEY_PREFIX),
             use_signer=app.config.get("SESSION_USE_SIGNER", DEFAULT_USE_SIGNER),
             permanent=app.config.get("SESSION_PERMANENT", True),
+            autodelete_expired_sessions=app.config.get(
+                "SESSION_AUTODELETE_EXPIRED", True
+            ),
+            max_db_conn=app.config.get(
+                "SESSION_PG_MAX_DB_CONN", DEFAULT_PG_MAX_DB_CONN
+            ),
         )
         app.session_interface = session_interface
         return session_interface
