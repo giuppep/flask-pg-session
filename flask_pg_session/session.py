@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import logging
 import pickle
 import random
 from contextlib import contextmanager
@@ -19,8 +18,6 @@ from werkzeug.datastructures import CallbackDict
 
 from ._queries import Queries
 from .utils import retry_query
-
-logger = logging.getLogger(__name__)
 
 DEFAULT_TABLE_NAME = "flask_sessions"
 DEFAULT_SCHEMA_NAME = "public"
@@ -50,7 +47,6 @@ class ServerSideSession(CallbackDict, SessionMixin):
 
 
 class FlaskPgSession(FlaskSessionInterface):
-    # Can probably just use jsonb + orjson (fallback to json if not available)
     serializer = pickle
     session_class = ServerSideSession
 
