@@ -17,12 +17,13 @@ from psycopg2.extensions import cursor as PsycoPg2Cursor
 from psycopg2.pool import ThreadedConnectionPool
 from werkzeug.datastructures import CallbackDict
 
-from . import _queries as queries
+from ._queries import Queries
 from .utils import retry_query
 
 logger = logging.getLogger(__name__)
 
 DEFAULT_TABLE_NAME = "flask_sessions"
+DEFAULT_SCHEMA_NAME = "public"
 DEFAULT_KEY_PREFIX = ""
 DEFAULT_USE_SIGNER = False
 DELETE_EXPIRED_SESSIONS_EVERY_REQUESTS = 1000
@@ -58,7 +59,8 @@ class FlaskPgSession(FlaskSessionInterface):
         """Initialize the Flask-PgSession extension using the app's configuration."""
         session_interface = cls(
             app.config["SQLALCHEMY_DATABASE_URI"],
-            table_name=app.config.get("SESSION_SQLALCHEMY_TABLE", DEFAULT_TABLE_NAME),
+            table_name=app.config.get("SESSION_PG_TABLE", DEFAULT_TABLE_NAME),
+            schema_name=app.config.get("SESSION_PG_SCHEMA", DEFAULT_SCHEMA_NAME),
             key_prefix=app.config.get("SESSION_KEY_PREFIX", DEFAULT_KEY_PREFIX),
             use_signer=app.config.get("SESSION_USE_SIGNER", DEFAULT_USE_SIGNER),
             permanent=app.config.get("SESSION_PERMANENT", True),
@@ -71,6 +73,7 @@ class FlaskPgSession(FlaskSessionInterface):
         uri: str,
         *,
         table_name: str = DEFAULT_TABLE_NAME,
+        schema_name: str = DEFAULT_SCHEMA_NAME,
         key_prefix: str = DEFAULT_KEY_PREFIX,
         use_signer: bool = DEFAULT_USE_SIGNER,
         permanent: bool = True,
@@ -83,6 +86,8 @@ class FlaskPgSession(FlaskSessionInterface):
             uri (str): The database URI to connect to.
             table_name (str, optional): The name of the table to store sessions in.
                 Defaults to "flask_sessions".
+            schema_name (str, optional): The name of the schema to store sessions in.
+                Defaults to "public".
             key_prefix (str, optional): The prefix to prepend to the session ID when
                 storing it in the database. Defaults to "".
             use_signer (bool, optional): Whether to use a signer to sign the session.
@@ -96,14 +101,16 @@ class FlaskPgSession(FlaskSessionInterface):
         """
         self.pool = ThreadedConnectionPool(1, max_db_conn, uri)
         self.key_prefix = key_prefix
-        self.table_name = table_name
+
         self.permanent = permanent
         self.use_signer = use_signer
         self.has_same_site_capability = hasattr(self, "get_cookie_samesite")
 
         self.autodelete_expired_sessions = autodelete_expired_sessions
 
-        self._create_table(self.table_name)
+        self._queries = Queries(schema_name, table_name)
+
+        self._create_schema_and_table()
 
     # HELPERS
 
@@ -151,20 +158,21 @@ class FlaskPgSession(FlaskSessionInterface):
             self.pool.putconn(_conn)
 
     @retry_query(max_attempts=3)
-    def _create_table(self, table_name: str) -> None:
+    def _create_schema_and_table(self) -> None:
         with self._get_cursor() as cur:
-            cur.execute(queries.CREATE_TABLE.format(table=table_name))
+            cur.execute(self._queries.create_schema)
+            cur.execute(self._queries.create_table)
 
     def _delete_expired_sessions(self) -> None:
         """Delete all expired sessions from the database."""
         with self._get_cursor() as cur:
-            cur.execute(queries.DELETE_EXPIRED_SESSIONS.format(table=self.table_name))
+            cur.execute(self._queries.delete_expired_sessions)
 
     @retry_query(max_attempts=3)
     def _delete_session(self, sid: str) -> None:
         with self._get_cursor() as cur:
             cur.execute(
-                queries.DELETE_SESSION.format(table=self.table_name),
+                self._queries.delete_session,
                 dict(session_id=self._get_store_id(sid)),
             )
 
@@ -172,7 +180,7 @@ class FlaskPgSession(FlaskSessionInterface):
     def _retrieve_session_data(self, sid: str) -> bytes | None:
         with self._get_cursor() as cur:
             cur.execute(
-                queries.RETRIEVE_SESSION_DATA.format(table=self.table_name),
+                self._queries.retrieve_session_data,
                 dict(session_id=self._get_store_id(sid)),
             )
             data = cur.fetchone()
@@ -186,7 +194,7 @@ class FlaskPgSession(FlaskSessionInterface):
         data = self.serializer.dumps(dict(session))
         with self._get_cursor() as cur:
             cur.execute(
-                queries.UPSERT_SESSION.format(table=self.table_name),
+                self._queries.upsert_session,
                 dict(session_id=self._get_store_id(sid), data=data, expiry=expires),
             )
 
