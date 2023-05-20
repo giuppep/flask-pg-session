@@ -47,29 +47,9 @@ class ServerSideSession(CallbackDict, SessionMixin):
         self.modified = False
 
 
-class FlaskPgSession(FlaskSessionInterface):
+class _FlaskPgSession(FlaskSessionInterface):
     serializer = pickle
     session_class = ServerSideSession
-
-    @classmethod
-    def init_app(cls, app: Flask) -> "FlaskPgSession":
-        """Initialize the Flask-PgSession extension using the app's configuration."""
-        session_interface = cls(
-            app.config["SQLALCHEMY_DATABASE_URI"],
-            table_name=app.config.get("SESSION_PG_TABLE", DEFAULT_TABLE_NAME),
-            schema_name=app.config.get("SESSION_PG_SCHEMA", DEFAULT_SCHEMA_NAME),
-            key_prefix=app.config.get("SESSION_KEY_PREFIX", DEFAULT_KEY_PREFIX),
-            use_signer=app.config.get("SESSION_USE_SIGNER", DEFAULT_USE_SIGNER),
-            permanent=app.config.get("SESSION_PERMANENT", True),
-            autodelete_expired_sessions=app.config.get(
-                "SESSION_AUTODELETE_EXPIRED", True
-            ),
-            max_db_conn=app.config.get(
-                "SESSION_PG_MAX_DB_CONN", DEFAULT_PG_MAX_DB_CONN
-            ),
-        )
-        app.session_interface = session_interface
-        return session_interface
 
     def __init__(
         self,
@@ -294,3 +274,57 @@ class FlaskPgSession(FlaskSessionInterface):
             if self.has_same_site_capability
             else None,
         )
+
+
+# We use this thin wrapper class to match the initialisation pattern of most Flask
+#  extensions.
+class FlaskPgSession:
+    """Flask extension for server-side sessions stored in PostgreSQL.
+
+    The following configuration options are supported:
+
+    - `SQLALCHEMY_DATABASE_URI`: The URI of the PostgreSQL database to use.
+    - `SESSION_PG_TABLE`: The name of the table to store sessions in.
+    - `SESSION_PG_SCHEMA`: The name of the schema to store sessions in.
+    - `SESSION_KEY_PREFIX`: The prefix to use for session IDs.
+    - `SESSION_USE_SIGNER`: Whether to sign session IDs.
+    - `SESSION_PERMANENT`: Whether to set the `permanent` flag on sessions.
+    - `SESSION_AUTODELETE_EXPIRED`: Whether to automatically delete expired
+        sessions.
+    - `SESSION_PG_MAX_DB_CONN`: The maximum number of database connections to use.
+    """
+
+    def __init__(self, app: Flask | None) -> None:
+        """Initialise the FlaskPgSession extension.
+
+        Args:
+            app: The Flask application to initialise the extension with.
+        """
+        self._session: _FlaskPgSession | None = None
+
+        if app is not None:
+            self.init_app(app)
+            assert self._session is not None
+
+    def init_app(self, app: Flask) -> _FlaskPgSession:
+        self._session = _FlaskPgSession(
+            app.config["SQLALCHEMY_DATABASE_URI"],
+            table_name=app.config.get("SESSION_PG_TABLE", DEFAULT_TABLE_NAME),
+            schema_name=app.config.get("SESSION_PG_SCHEMA", DEFAULT_SCHEMA_NAME),
+            key_prefix=app.config.get("SESSION_KEY_PREFIX", DEFAULT_KEY_PREFIX),
+            use_signer=app.config.get("SESSION_USE_SIGNER", DEFAULT_USE_SIGNER),
+            permanent=app.config.get("SESSION_PERMANENT", True),
+            autodelete_expired_sessions=app.config.get(
+                "SESSION_AUTODELETE_EXPIRED", True
+            ),
+            max_db_conn=app.config.get(
+                "SESSION_PG_MAX_DB_CONN", DEFAULT_PG_MAX_DB_CONN
+            ),
+        )
+        app.session_interface = self._session
+        return self._session
+
+    def __getattr__(self, attr: str) -> Any:
+        if self._session is None:
+            raise RuntimeError("Must initialise FlaskPgSession with a Flask app")
+        return getattr(self._session, attr)
