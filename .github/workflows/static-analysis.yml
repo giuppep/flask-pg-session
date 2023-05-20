@@ -11,7 +11,7 @@ env:
 
 jobs:
   static:
-    name: publish
+    name: static_analysis
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -34,7 +34,7 @@ jobs:
         run: poetry run black --check --diff $APP_DIR
 
       - name: isort
-        run: poetry run isort --check-only --diff --color $APP_DIR
+        run: poetry run isort --check-only --diff $APP_DIR
 
       - name: flake8
         run: poetry run flake8 $APP_DIR
