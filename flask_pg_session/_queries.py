@@ -48,7 +48,8 @@ class Queries:
     def retrieve_session_data(self) -> str:
         return sql.SQL(
             """--- If the current sessions is expired, delete it
-            DELETE FROM {schema}.{table} WHERE session_id = %(session_id)s AND expiry < NOW();
+            DELETE FROM {schema}.{table}
+            WHERE session_id = %(session_id)s AND expiry < NOW();
             --- Else retrieve it
             SELECT data FROM {schema}.{table} WHERE session_id = %(session_id)s;
         """

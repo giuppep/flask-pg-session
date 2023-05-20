@@ -239,7 +239,8 @@ class _FlaskPgSession(FlaskSessionInterface):
 
         if not session:
             if session.modified:
-                # If the session is empty and has been modified, delete it from the database
+                # If the session is empty and has been modified, delete it from the
+                #  database
                 self._delete_session(session.sid)
                 # and delete the cookie
                 response.delete_cookie(
