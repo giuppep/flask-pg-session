@@ -1,0 +1,28 @@
+# Adapted from https://github.com/python-poetry/poetry/blob/master/.github/workflows/release.yml
+name: Release
+
+on:
+  push:
+    branches:
+      - gh-actions
+
+jobs:
+  static:
+    name: publish
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v2
+        with:
+          python-version: "3.10"
+
+      - name: Install Poetry
+        run: |
+          pip install poetry
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Install dependencies
+        run: poetry install --with dev
