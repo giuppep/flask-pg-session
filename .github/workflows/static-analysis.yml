@@ -36,8 +36,8 @@ jobs:
       - name: isort
         run: poetry run isort --check-only --diff $APP_DIR
 
-      - name: flake8
-        run: poetry run flake8 $APP_DIR
+      - name: ruff
+        run: poetry run ruff check $APP_DIR
 
       - name: pydocstyle
         run: poetry run pydocstyle $APP_DIR
