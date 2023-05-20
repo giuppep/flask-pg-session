@@ -6,16 +6,19 @@ on:
     branches:
       - gh-actions
 
+env:
+  APP_DIR: flask_pg_session
+
 jobs:
   static:
     name: publish
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Set up Python 3.10
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v3
         with:
           python-version: "3.10"
 
@@ -26,3 +29,15 @@ jobs:
 
       - name: Install dependencies
         run: poetry install --with dev
+
+      - name: black
+        run: poetry run black --check --diff $APP_DIR
+
+      - name: isort
+        run: poetry run isort --check-only --diff --color $APP_DIR
+
+      - name: flake8
+        run: poetry run flake8 $APP_DIR
+
+      - name: pydocstyle
+        run: poetry run pydocstyle $APP_DIR
