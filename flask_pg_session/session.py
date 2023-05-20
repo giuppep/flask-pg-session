@@ -17,7 +17,7 @@ from psycopg2.pool import ThreadedConnectionPool
 from werkzeug.datastructures import CallbackDict
 
 from ._queries import Queries
-from .utils import retry_query
+from ._utils import retry_query
 
 DEFAULT_TABLE_NAME = "flask_sessions"
 DEFAULT_SCHEMA_NAME = "public"
