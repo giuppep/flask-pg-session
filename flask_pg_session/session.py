@@ -192,6 +192,11 @@ class FlaskPgSession(FlaskSessionInterface):
         self, sid: str, session: ServerSideSession, expires: datetime | None
     ) -> None:
         data = self.serializer.dumps(dict(session))
+
+        # Remove timezone info from expires as the date is already in UTC and the
+        #  timezone causes incorrect values to be stored in the database.
+        expires = expires.replace(tzinfo=None) if expires else None
+
         with self._get_cursor() as cur:
             cur.execute(
                 self._queries.upsert_session,
