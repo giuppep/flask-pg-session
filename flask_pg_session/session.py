@@ -280,27 +280,24 @@ class _FlaskPgSession(FlaskSessionInterface):
 # We use this thin wrapper class to match the initialisation pattern of most Flask
 #  extensions.
 class FlaskPgSession:
-    """Flask extension for server-side sessions stored in PostgreSQL.
+    def __init__(self, app: Flask | None) -> None:
+        """Flask extension for server-side sessions stored in PostgreSQL.
 
         The following configuration options are supported:
 
-    - `SQLALCHEMY_DATABASE_URI`: The URI of the PostgreSQL database to use.
-    - `SESSION_PG_TABLE`: The name of the table to store sessions in. Defaults to
-        `flask_sessions`.
-    - `SESSION_PG_SCHEMA`: The name of the schema to store sessions in. Defaults to
-        `public`.
-    - `SESSION_KEY_PREFIX`: The prefix to use for session IDs. Defaults to "".
-    - `SESSION_USE_SIGNER`: Whether to sign session IDs. Defaults to False.
-    - `SESSION_PERMANENT`: Whether to set the `permanent` flag on sessions. Defaults to
-         True.
-    - `SESSION_AUTODELETE_EXPIRED`: Whether to automatically delete expired sessions.
-        Defaults to True.
-    - `SESSION_PG_MAX_DB_CONN`: The maximum number of database connections to use.
-        Defaults to 100.
-    """
-
-    def __init__(self, app: Flask | None) -> None:
-        """Initialise the FlaskPgSession extension.
+        - ``SQLALCHEMY_DATABASE_URI``: The URI of the PostgreSQL database to use.
+        - ``SESSION_PG_TABLE``: The name of the table to store sessions in. Defaults to
+            ``"flask_sessions"``.
+        - ``SESSION_PG_SCHEMA``: The name of the schema to store sessions in. Defaults
+            to ``"public"``.
+        - ``SESSION_KEY_PREFIX``: The prefix to use for session IDs. Defaults to ``""``.
+        - ``SESSION_USE_SIGNER``: Whether to sign session IDs. Defaults to ``False``.
+        - ``SESSION_PERMANENT``: Whether to set the `permanent` flag on sessions.
+            Defaults to ``True``.
+        - ``SESSION_AUTODELETE_EXPIRED``: Whether to automatically delete expired
+            sessions. Defaults to ``True``.
+        - ``SESSION_PG_MAX_DB_CONN``: The maximum number of database connections to use.
+            Defaults to ``100``.
 
         Args:
             app: The Flask application to initialise the extension with.
@@ -312,6 +309,11 @@ class FlaskPgSession:
             assert self._session is not None
 
     def init_app(self, app: Flask) -> _FlaskPgSession:
+        """Initialise the extension.
+
+        Args:
+            app: The Flask application to initialise the extension with.
+        """
         self._session = _FlaskPgSession(
             app.config["SQLALCHEMY_DATABASE_URI"],
             table_name=app.config.get("SESSION_PG_TABLE", DEFAULT_TABLE_NAME),
