@@ -45,11 +45,13 @@ available:
 - `SESSION_PERMANENT`: Whether to set the `permanent` flag on sessions. Defaults to True.
 - `SESSION_AUTODELETE_EXPIRED`: Whether to automatically delete expired
 sessions. Defaults to True.
-- `SESSION_PG_MAX_DB_CONN`: The maximum number of database connections to use. Defaults to 100.
+- `SESSION_PG_MAX_DB_CONN`: The maximum number of database connections to use. Defaults to 10.
 
 ## Contributions
 
-Contributions are welcome! If you encounter any issues, have suggestions, or would like to contribute to `FlaskPgSession`, please feel free to submit a pull request or open an issue.
+Contributions are welcome! If you encounter any issues, have suggestions, or would like
+to contribute to `FlaskPgSession`, please feel free to submit a pull request or
+open an issue.
 
 
 ## License

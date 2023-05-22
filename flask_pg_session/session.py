@@ -24,7 +24,9 @@ DEFAULT_SCHEMA_NAME = "public"
 DEFAULT_KEY_PREFIX = ""
 DEFAULT_USE_SIGNER = False
 DELETE_EXPIRED_SESSIONS_EVERY_REQUESTS = 1000
-DEFAULT_PG_MAX_DB_CONN = 100
+DEFAULT_PG_MAX_DB_CONN = 10
+DEFAULT_AUTODELETE_EXPIRED_SESSIONS = True
+DEFAULT_PERMANENT_SESSION = True
 
 
 # This is copied verbatim from flask-session
@@ -59,9 +61,9 @@ class _FlaskPgSession(FlaskSessionInterface):
         schema_name: str = DEFAULT_SCHEMA_NAME,
         key_prefix: str = DEFAULT_KEY_PREFIX,
         use_signer: bool = DEFAULT_USE_SIGNER,
-        permanent: bool = True,
-        autodelete_expired_sessions: bool = True,
-        max_db_conn: int = 100,
+        permanent: bool = DEFAULT_PERMANENT_SESSION,
+        autodelete_expired_sessions: bool = DEFAULT_AUTODELETE_EXPIRED_SESSIONS,
+        max_db_conn: int = DEFAULT_PG_MAX_DB_CONN,
     ) -> None:
         """Initialize a new Flask-PgSession instance.
 
@@ -80,7 +82,7 @@ class _FlaskPgSession(FlaskSessionInterface):
             autodelete_expired_sessions (bool, optional): Whether to automatically
                 delete expired sessions. Defaults to True.
             max_db_conn (int, optional): The maximum number of database connections to
-                keep open. Defaults to 100.
+                keep open. Defaults to 10.
         """
         self.pool = ThreadedConnectionPool(1, max_db_conn, uri)
         self.key_prefix = key_prefix
@@ -320,9 +322,9 @@ class FlaskPgSession:
             schema_name=app.config.get("SESSION_PG_SCHEMA", DEFAULT_SCHEMA_NAME),
             key_prefix=app.config.get("SESSION_KEY_PREFIX", DEFAULT_KEY_PREFIX),
             use_signer=app.config.get("SESSION_USE_SIGNER", DEFAULT_USE_SIGNER),
-            permanent=app.config.get("SESSION_PERMANENT", True),
+            permanent=app.config.get("SESSION_PERMANENT", DEFAULT_PERMANENT_SESSION),
             autodelete_expired_sessions=app.config.get(
-                "SESSION_AUTODELETE_EXPIRED", True
+                "SESSION_AUTODELETE_EXPIRED", DEFAULT_AUTODELETE_EXPIRED_SESSIONS
             ),
             max_db_conn=app.config.get(
                 "SESSION_PG_MAX_DB_CONN", DEFAULT_PG_MAX_DB_CONN
