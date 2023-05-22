@@ -1,0 +1,12 @@
+site_name: FlaskPgSession
+site_url: https://flask-pg-session.readthedocs.io/en/latest/
+repo_url: https://github.com/giuppep/flask-pg-session/
+repo_name: giuppep/flask-pg-session
+site_author: Giuseppe Papallo
+theme: readthedocs
+nav:
+  - index.md
+  - External Links:
+    - 'Issue Tracker': 'https://github.com/giuppep/flask-pg-session/issues'
+    - 'Flask': 'https://flask.palletsprojects.com'
+    - 'Flask-Session': 'https://flasksession.readthedocs.io/en/latest/'
