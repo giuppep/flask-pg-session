@@ -5,7 +5,14 @@ description = "Flask extension that implements server-side sessions in PostgreSQ
 authors = ["Giuseppe Papallo <giuseppe@papallo.it>"]
 license = "MIT"
 readme = "README.md"
+homepage = "https://github.com/giuppep/flask-pg-session"
+repository = "https://github.com/giuppep/flask-pg-session"
+documentation = "https://github.com/giuppep/flask-pg-session#readme"
+keywords = ["flask", "server-side session", "session"]
 packages = [{ include = "flask_pg_session" }]
+
+[tool.poetry.urls]
+"Bug Tracker" = "https://github.com/giuppep/flask-pg-session/issues"
 
 [tool.poetry.dependencies]
 python = ">3.8.1"
