@@ -1,9 +1,14 @@
 # FlaskPgSession
 
-`FlaskPgSession` is a [`Flask`](https://flask.palletsprojects.com/) extensions that implements server-side session support and stores the data in a PostgreSQL table.
+`FlaskPgSession` is a [`Flask`](https://flask.palletsprojects.com/) extensions that
+implements server-side session support and stores the data in a PostgreSQL table.
 
 It is inspired by [`Flask-Session`](https://flasksession.readthedocs.io/en/latest/)
-but has fewer dependencies.
+but it's focused only on integration with PostgreSQL and therefore has fewer
+dependencies.
+
+It is intended for people that are already using Flask with PostgreSQL and do not want
+to add another dependency to their app just for storing sessions (e.g. Redis).
 
 ## Installation
 
