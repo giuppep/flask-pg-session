@@ -1,5 +1,7 @@
 # FlaskPgSession
 
+[![Documentation Status](https://readthedocs.org/projects/flask-pg-session/badge/?version=latest)](https://flask-pg-session.readthedocs.io/en/latest/?badge=latest)
+
 `FlaskPgSession` is a [`Flask`](https://flask.palletsprojects.com/) extensions that
 implements server-side session support and stores the data in a PostgreSQL table.
 
