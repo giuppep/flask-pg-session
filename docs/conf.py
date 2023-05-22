@@ -23,7 +23,7 @@ extensions = [
     "sphinx.ext.napoleon",
     "sphinx.ext.viewcode",
     "alabaster",
-    "myst_parser"
+    # "myst_parser"
 ]
 autosummary_generate = True  # Turn on sphinx.ext.autosummary
 autodoc_default_options = {
