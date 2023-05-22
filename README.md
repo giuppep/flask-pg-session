@@ -45,8 +45,8 @@ The extension can be configured via the `Flask` config file. The following optio
 available:
 
 - `SQLALCHEMY_DATABASE_URI`: The URI of the PostgreSQL database to use.
-- `SESSION_PG_TABLE`: The name of the table to store sessions in. Defaults to `flask_sessions`.
-- `SESSION_PG_SCHEMA`: The name of the schema to store sessions in. Defaults to `public`.
+- `SESSION_PG_TABLE`: The name of the table to store sessions in. Defaults to `"flask_sessions"`.
+- `SESSION_PG_SCHEMA`: The name of the schema to store sessions in. Defaults to `"public"`.
 - `SESSION_KEY_PREFIX`: The prefix to use for session IDs. Absent by default.
 - `SESSION_USE_SIGNER`: Whether to sign session IDs. Defaults to False.
 - `SESSION_PERMANENT`: Whether to set the `permanent` flag on sessions. Defaults to True.
